@@ -9,7 +9,7 @@ int main(int argc, char** argv)
 	char* marked;
 	int prime = 2;	
 
-	int n = 25;
+	int n = 99;
 
 	int sqrtN = ceil((double)sqrt(n));
 
@@ -38,6 +38,7 @@ int main(int argc, char** argv)
 	
 	int q =0;
 	int lastUnmarked=-1;
+	int lastUnmarkedIndex = 0;
 	while(prime != -1)
 	{
 		cout << prime << endl;
@@ -82,10 +83,16 @@ int main(int argc, char** argv)
 			{
 				if(prime <= ((processId-1)*blockSize+2+blockSize-1))
 				{
-					for(int i=0;i<blockSize;i++)
+					for(int i=lastUnmarkedIndex;i<blockSize;i++)
 					{
-						if(((i+(processId-1)*blockSize+2) % prime) == 0 /**&& ((i+(processId-1)*blockSize+2)!=prime)**/)
+						if(((i+(processId-1)*blockSize+2) % prime) == 0)
 							marked[i] = '1';
+
+						if((i+(processId-1)*blockSize+2) == prime)//////////////////////////
+						{
+							marked[i] = '0';
+							lastUnmarkedIndex++;
+						}
 					}
 				}
 
@@ -93,11 +100,12 @@ int main(int argc, char** argv)
 
 				if((prime <= ((processId-1)*blockSize+2+blockSize-1)) && (((processId-1)*blockSize+2) <= sqrtN))
 				{
-					for(int i=0;i<blockSize;i++)
+					for(int i=lastUnmarkedIndex;i<blockSize;i++)
 					{
 						if((marked[i] == '0')) ///////if not marked
 						{
 							lastUnmarked = i+(processId-1)*blockSize+2;
+							lastUnmarkedIndex = i;
 							break;
 						}
 					}
@@ -126,6 +134,9 @@ int main(int argc, char** argv)
 
 		for(int i=blockSize; i<((noOfProcesses)*blockSize);i++){
 			
+			if(i-blockSize+2>n)
+				break;
+
 			if(isPrime[i]=='0')
 				cout<< i-blockSize+2 << endl;
 		}
