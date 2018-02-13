@@ -13,6 +13,8 @@ int main(int argc, char** argv)
 	int n;
 	cin >> n;
 
+	int sqrtN = ceil((double)sqrt(n));
+
 	int blockSize; 
 
 	int err, processId;	
@@ -51,25 +53,33 @@ int main(int argc, char** argv)
 		
 		if(processId!=rootProcess)
 		{
-			lastUnmarked = 0;
-			flag = 0;
-				
 			for(int i=0;i<blockSize;i++)
 				marked[i] = '0';
 			
-			
-			for(int i=0;i<blockSize;i++)
+			if(prime <= ((processId-1)*blockSize+2+blockSize-1))
 			{
-				if(((i+(processId-1)*blockSize+2) % prime) == 0)
-					marked[i] = '1';
-			}	
-
-			for(int i=0;i<blockSize;i++)
-			{
-				if((marked[i] == '0'))
+				for(int i=0;i<blockSize;i++)
 				{
-					lastUnmarked = i+(processId-1)*blockSize+2;
+					if(((i+(processId-1)*blockSize+2) % prime) == 0)
+						marked[i] = '1';
 				}
+			}
+
+			lastUnmarked = -1;	
+
+			if((prime <= ((processId-1)*blockSize+2+blockSize-1)) && (((processId-1)*blockSize+2) <= sqrtN))
+			{
+				for(int i=0;i<blockSize;i++)
+				{
+					if((marked[i] == '0'))
+					{
+						lastUnmarked = i+(processId-1)*blockSize+2;
+					}
+				}
+			}
+			else
+			{
+				lastUnmarked = -1;
 			}
 		}	
 
