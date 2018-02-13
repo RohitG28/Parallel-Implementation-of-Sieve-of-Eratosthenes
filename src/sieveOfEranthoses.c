@@ -30,7 +30,7 @@ int main(int argc, char** argv)
 	rootProcess = 0;
 
 	int* primesReceived = (int*)malloc(noOfProcesses*sizeof(int));
-	memset(primes_received, '0', sizeof(primesReceived));
+	memset(primes_received, 0, sizeof(primesReceived));
 
 	int q =0;
 	while(prime != -1)
@@ -42,7 +42,25 @@ int main(int argc, char** argv)
 
 			if (processId == rootProcess)
 			{
-				
+				int all_null = 1;
+
+				for(int i=0;i<noOfProcesses;i++)
+				{
+					if(primes_received[i]!=-1 && all_null==1){
+						
+						prime = primes_received[i];
+						all_null = 0;
+						
+					}
+					else if(primes_received[i]!=-1){
+						prime = min(primes_received[i],prime);
+					}
+				}
+			}
+
+			if(all_null==1)
+			{
+				prime = 1;
 			}
 			
 			err =  MPI_Bcast( &prime, 1, MPI_INT, rootProcess, MPI_COMM_WORLD);
