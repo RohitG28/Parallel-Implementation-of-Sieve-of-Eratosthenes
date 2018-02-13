@@ -29,13 +29,27 @@ int main(int argc, char** argv)
 
 	rootProcess = 0;
 
-	while(prime == -1)
+	int* primesReceived = (int*)malloc(noOfProcesses*sizeof(int));
+	memset(primes_received, '0', sizeof(primesReceived));
+
+	int q =0;
+	while(prime != -1)
 	{
-		if (processId == rootProcess)
+		if(q!=0)
 		{
-		
+
+			err = MPI_Gather(&(lastUnmarked), 1, MPI_INT,(void *)primes_received, 1, MPI_INT, rootProcess, MPI_COMM_WORLD);
+
+			if (processId == rootProcess)
+			{
+				
+			}
+			
+			err =  MPI_Bcast( &prime, 1, MPI_INT, rootProcess, MPI_COMM_WORLD);
 		}
-		else
+		
+
+		if(processId!=rootProcess)
 		{
 			int lastUnmarked = 0;
 			marked = (char*)malloc(blockSize*sizeof(char));	
@@ -47,11 +61,10 @@ int main(int argc, char** argv)
 				{
 					if(((i+(processId-1)*blockSize+2) % prime) == 0)
 				}
-				MPI_Gather()
-				// int MPI_Gather(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
-		  //              void *recvbuf, int recvcount, MPI_Datatype recvtype,
-		  //              int root, MPI_Comm comm)
-		}
+				
+		}	
+
+		q++;	
 	}
 
 	err = MPI_Finalize();
