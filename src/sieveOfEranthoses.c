@@ -9,7 +9,7 @@ int main(int argc, char** argv)
 	char* marked;
 	int prime = 2;	
 
-	int n = 13;
+	int n = 25;
 
 	int sqrtN = ceil((double)sqrt(n));
 
@@ -26,33 +26,24 @@ int main(int argc, char** argv)
 	err = MPI_Comm_size(MPI_COMM_WORLD, &noOfProcesses);
 
 	blockSize = ceil((double)n/(noOfProcesses-1));
-	cout << "I am blockSize " <<  blockSize << endl;
-	MPI_Barrier(MPI_COMM_WORLD);
-
+	
 	int rootProcess = 0;
 
-	int* primesReceived = (int*)malloc((noOfProcesses-1)*sizeof(int));
+	int* primesReceived = (int*)malloc((noOfProcesses)*sizeof(int));
 
 	marked = (char*)malloc(blockSize*sizeof(char));
 	memset(marked, '0', sizeof(marked));
 	memset(primesReceived, 0, sizeof(primesReceived));
 
-	int* displacement = (int*)malloc((noOfProcesses-1)*sizeof(int));
-	int* rcvCount = (int*)malloc((noOfProcesses-1)*sizeof(int)); 
-	for(int i=0;i<(noOfProcesses-1);i++)
-	{
-		displacement[i] = i;
-		rcvCount[i] = 1;
-	}
-
+	
 	int q =0;
-	int lastUnmarked = -1;
+	int lastUnmarked=-1;
 	while(prime != -1)
 	{
 		cout << prime << endl;
 		if(q!=0)
 		{
-			err = MPI_Gatherv(&(lastUnmarked), 1, MPI_INT, primesReceived, rcvCount, displacement, MPI_INT, rootProcess, MPI_COMM_WORLD);
+			err = MPI_Gather(&(lastUnmarked), 1, MPI_INT, primesReceived, 1, MPI_INT, rootProcess, MPI_COMM_WORLD);
 
 			if (processId == rootProcess)
 			{
@@ -75,14 +66,14 @@ int main(int argc, char** argv)
 					prime = -1;
 				}
 
-				for(int i=0;i<(noOfProcesses-1);i++)
+				for(int i=1;i<(noOfProcesses);i++)
 				{
 					cout << primesReceived[i] << " ";
 				}
 				cout << endl;
 			}
 			
-			err =  MPI_Bcast( &prime, 1, MPI_INT, rootProcess, MPI_COMM_WORLD);
+			err =  MPI_Bcast(&prime, 1, MPI_INT, rootProcess, MPI_COMM_WORLD);
 		}
 		
 		if(prime != (-1))
@@ -93,7 +84,7 @@ int main(int argc, char** argv)
 				{
 					for(int i=0;i<blockSize;i++)
 					{
-						if(((i+(processId-1)*blockSize+2) % prime) == 0)
+						if(((i+(processId-1)*blockSize+2) % prime) == 0 /**&& ((i+(processId-1)*blockSize+2)!=prime)**/)
 							marked[i] = '1';
 					}
 				}
@@ -120,6 +111,28 @@ int main(int argc, char** argv)
 		err = MPI_Barrier(MPI_COMM_WORLD);
 		q++;	
 	}
+	
+	char* isPrime = (char*)malloc(sizeof(char)*noOfProcesses*blockSize);
+
+
+	//Gather Data from Everywhere
+	err = MPI_Gather(marked, blockSize, MPI_CHAR, isPrime, blockSize, MPI_CHAR, rootProcess, MPI_COMM_WORLD);
+
+
+	//Printing the Prime Numbers
+	if(processId==rootProcess){
+
+		cout<<"\n-----------Printing Prime Numbers-----------\n\n";
+
+		for(int i=blockSize; i<((noOfProcesses)*blockSize);i++){
+			
+			if(isPrime[i]=='0')
+				cout<< i-blockSize+2 << endl;
+		}
+
+		cout<<"\n----------------Woah----------------\n";
+	}
+
 
 	err = MPI_Finalize();
 
