@@ -2,22 +2,26 @@
 #include <iostream>
 #include <math.h>
 
+#define FILE_BLOCK_SIZE 4096
+
 using namespace std;
 
 int main(int argc, char** argv)
 {	
 	//Per process array of marked numbers
-	char* marked;
+	char marked[FILE_BLOCK_SIZE];
 
 	//prime initialized to 2
-	int prime = 2;	
+	long long prime = 2;
+
+	double elapsedTime = -MPI_Wtime();	
 
 	//variable N
-	int n = 100;
+	long long n = 100;
 
-	int sqrtN = ceil((double)sqrt(n));
+	long long sqrtN = ceil((double)sqrt(n));
 
-	int blockSize; 
+	long long blockSize; 
 
 	int err, processId, noOfProcesses;	
 	
@@ -34,28 +38,40 @@ int main(int argc, char** argv)
 	//Size of range given to each process
 	blockSize = ceil((double)n/(noOfProcesses-1));
 	
-
 	int rootProcess = 0;
 
 	//Root process receives primes from each process
-	int* numbersReceived = (int*)malloc((noOfProcesses)*sizeof(int));
+	long long* numbersReceived = (long long*)malloc((noOfProcesses)*sizeof(long long));
 
-
-	//Every number is unmarked initially
-	marked = (char*)malloc(blockSize*sizeof(char));
-	
-	for(int i=0;i<blockSize;i++)
+	// Every number is unmarked initially
+	for(int i=0;i<FILE_BLOCK_SIZE;i++)
 	{
 		marked[i] = '0';
 	}
 	
+	maxProcessIDLength = 10;
+	if(processId != rootProcess)
+	{
+		char s[maxProcessIDLength]; 
+		sprintf(s, "%d", processId);
+		FILE* fp = fopen(s,"ab+");
+		long long noOfIterations = blockSize/FILE_BLOCK_SIZE;
+		for(long long i=0;i<noOfIterations;i++)
+		{
+			fwrite(marked,sizeof(char),FILE_BLOCK_SIZE,fp);
+		}
+		long long remainingCharsToWrite = (blockSize - FILE_BLOCK_SIZE*noOfIterations);
+		if(remainingCharsToWrite > 0)
+			fwrite(marked,sizeof(char),remainingCharsToWrite,fp);
+	}
+
 	memset(numbersReceived, 0, sizeof(numbersReceived));
-
 	
-	int q =0;
-	int lastUnmarked=-1;
-	int lastUnmarkedIndex = 0;
-
+	long long q =0;
+	long long lastUnmarked=-1;
+	long long lastUnmarkedIndex = 0;
+	int nread;
+	long long j;
 
 	while(prime != -1 && prime<=sqrtN)
 	{	
@@ -64,7 +80,7 @@ int main(int argc, char** argv)
 		if(q!=0)
 		{
 			//Gather First unmarked number in each block from all processes 
-			err = MPI_Gather(&(lastUnmarked), 1, MPI_INT, numbersReceived, 1, MPI_INT, rootProcess, MPI_COMM_WORLD);
+			err = MPI_Gather(&(lastUnmarked), 1, MPI_LONG_LONG, numbersReceived, 1, MPI_LONG_LONG, rootProcess, MPI_COMM_WORLD);
 
 			//Root process will broadcast the minimum to every process 
 			if (processId == rootProcess)
@@ -72,7 +88,8 @@ int main(int argc, char** argv)
 				int allNull = 1;
 				for(int i=1 ;i <noOfProcesses;i++)
 				{
-					if(numbersReceived[i]!=-1 && allNull==1){
+					if(numbersReceived[i]!=-1 && allNull==1)
+					{
 						
 						prime = numbersReceived[i];
 						allNull = 0;
@@ -98,7 +115,7 @@ int main(int argc, char** argv)
 			}
 			
 			//Broadcast the prime number to all the processes
-			err =  MPI_Bcast(&prime, 1, MPI_INT, rootProcess, MPI_COMM_WORLD);
+			err =  MPI_Bcast(&prime, 1, MPI_LONG_LONG, rootProcess, MPI_COMM_WORLD);
 		}
 		
 		if(prime != (-1) && prime<=sqrtN)
@@ -112,28 +129,39 @@ int main(int argc, char** argv)
 				//blocks with upper limit less than the prime number, since it won't have any multiples of the prime number
 				if(prime <= ((processId-1)*blockSize+2+blockSize-1))
 				{
-
+					j = 0;
 					//proceed only after lastunmarked index
-					for(int i=lastUnmarkedIndex;i<blockSize;i++)
+					fseek(fp,lastUnmarkedIndex,SEEK_SET);
+					while(1)
 					{
-
-						//If the current number goes beyond N, stop the marking phase
-						if((i+(processId-1)*blockSize+2) > n)
+						j++;
+						nread = fread(marked,sizeof(char),FILE_BLOCK_SIZE,fp);
+						for(long long i=0;i<nread;i++)
 						{
+
+							//If the current number goes beyond N, stop the marking phase
+							if((i*j+(processId-1)*blockSize+2) > n)
+							{
+								break;
+							}
+
+							//If the current number is a multiple of prime, then mark it
+							if(((i*j+(processId-1)*blockSize+2) % prime) == 0)
+								marked[i] = '1';
+
+							//Unmark the prime number, which got marked in the previous step
+							if((i*j+(processId-1)*blockSize+2) == prime)
+							{
+								marked[i] = '0';
+								lastUnmarkedIndex++;
+							}
+						}
+						fseek(fp,(-nread),SEEK_CUR);
+						fwrite(marked,sizeof(char),nread,fp);
+						if(nread < FILE_BLOCK_SIZE)
 							break;
-						}
-
-						//If the current number is a multiple of prime, then mark it
-						if(((i+(processId-1)*blockSize+2) % prime) == 0)
-							marked[i] = '1';
-
-						//Unmark the prime number, which got marked in the previous step
-						if((i+(processId-1)*blockSize+2) == prime)
-						{
-							marked[i] = '0';
-							lastUnmarkedIndex++;
-						}
 					}
+					fseek(fp,0,SEEK_SET);
 				}
 
 				//Again initialize lastUnmarked to -1
@@ -142,23 +170,34 @@ int main(int argc, char** argv)
 
 				if((prime <= ((processId-1)*blockSize+2+blockSize-1)) && (((processId-1)*blockSize+2) <= sqrtN))
 				{
-					for(int i=lastUnmarkedIndex;i<blockSize;i++)
+					j = 0;
+					//proceed only after lastunmarked index
+					fseek(fp,lastUnmarkedIndex,SEEK_SET);
+					while(1)
 					{
-
-						//If the current number goes beyond N, stop finding the last unmarked
-						if((i+(processId-1)*blockSize+2) > n)
+						j++;
+						nread = fread(marked,sizeof(char),FILE_BLOCK_SIZE,fp);
+						for(long long i=0;i<nread;i++)
 						{
-							break;
-						}
 
-						//If unmarked is found
-						if(marked[i] == '0') 
-						{
-							lastUnmarked = i+(processId-1)*blockSize+2;
-							lastUnmarkedIndex = i;
-							break;
+							//If the current number goes beyond N, stop finding the last unmarked
+							if((i*j+(processId-1)*blockSize+2) > n)
+							{
+								break;
+							}
+
+							//If unmarked is found
+							if(marked[i] == '0') 
+							{
+								lastUnmarked = i*j+(processId-1)*blockSize+2;
+								lastUnmarkedIndex = i*j;
+								break;
+							}
 						}
+						if(nread < FILE_BLOCK_SIZE)
+							break;
 					}
+					fseek(fp,0,SEEK_SET);
 				}
 				else
 				{
@@ -176,6 +215,7 @@ int main(int argc, char** argv)
 	//Gather Data from Everywhere
 	err = MPI_Gather(marked, blockSize, MPI_CHAR, isPrime, blockSize, MPI_CHAR, rootProcess, MPI_COMM_WORLD);
 
+	elapsedTime += MPI_Wtime();
 
 	//Printing the Prime Numbers
 	if(processId==rootProcess)
@@ -199,6 +239,9 @@ int main(int argc, char** argv)
 
 		cout<<"\n----------------Woah----------------\n";
 	}
+
+	if(processId == rootProcess)
+		cout << "Elapsed Time:" << elapsedTime << endl;
 
 	//Parallel Code over
 	err = MPI_Finalize();
