@@ -31,8 +31,9 @@ int main(int argc, char** argv)
 
 	int* primesReceived = (int*)malloc(noOfProcesses*sizeof(int));
 	memset(primes_received, '0', sizeof(primesReceived));
-
+	marked = (char*)malloc(blockSize*sizeof(char));
 	int q =0;
+	int lastUnmarked;
 	while(prime != -1)
 	{
 		if(q!=0)
@@ -48,20 +49,28 @@ int main(int argc, char** argv)
 			err =  MPI_Bcast( &prime, 1, MPI_INT, rootProcess, MPI_COMM_WORLD);
 		}
 		
-
 		if(processId!=rootProcess)
 		{
-			int lastUnmarked = 0;
-			marked = (char*)malloc(blockSize*sizeof(char));	
+			lastUnmarked = 0;
+			flag = 0;
+				
 			for(int i=0;i<blockSize;i++)
 				marked[i] = '0';
 			
 			
-				for(int i=0;i<blockSize;i++)
+			for(int i=0;i<blockSize;i++)
+			{
+				if(((i+(processId-1)*blockSize+2) % prime) == 0)
+					marked[i] = '1';
+			}	
+
+			for(int i=0;i<blockSize;i++)
+			{
+				if((marked[i] == '0'))
 				{
-					if(((i+(processId-1)*blockSize+2) % prime) == 0)
+					lastUnmarked = i+(processId-1)*blockSize+2;
 				}
-				
+			}
 		}	
 
 		q++;	
