@@ -5,11 +5,15 @@
 using namespace std;
 
 int main(int argc, char** argv)
-{
+{	
+	//Per process array of marked numbers
 	char* marked;
+
+	//prime initialized to 2
 	int prime = 2;	
 
-	int n = 99;
+	//variable N
+	int n = 100;
 
 	int sqrtN = ceil((double)sqrt(n));
 
@@ -19,76 +23,112 @@ int main(int argc, char** argv)
 	
 	//Parallelization starts
 	err = MPI_Init(&argc, &argv);
+
+	//Let every process come execute MPI_Init
 	err = MPI_Barrier(MPI_COMM_WORLD);
 
 	//Get Rank and Total no of processes
 	err = MPI_Comm_rank(MPI_COMM_WORLD, &processId);
 	err = MPI_Comm_size(MPI_COMM_WORLD, &noOfProcesses);
 
+	//Size of range given to each process
 	blockSize = ceil((double)n/(noOfProcesses-1));
 	
+
 	int rootProcess = 0;
 
-	int* primesReceived = (int*)malloc((noOfProcesses)*sizeof(int));
+	//Root process receives primes from each process
+	int* numbersReceived = (int*)malloc((noOfProcesses)*sizeof(int));
 
+
+	//Every number is unmarked initially
 	marked = (char*)malloc(blockSize*sizeof(char));
-	memset(marked, '0', sizeof(marked));
-	memset(primesReceived, 0, sizeof(primesReceived));
+	
+	for(int i=0;i<blockSize;i++)
+	{
+		marked[i] = '0';
+	}
+	
+	memset(numbersReceived, 0, sizeof(numbersReceived));
 
 	
 	int q =0;
 	int lastUnmarked=-1;
 	int lastUnmarkedIndex = 0;
-	while(prime != -1)
-	{
-		cout << prime << endl;
+
+
+	while(prime != -1 && prime<=sqrtN)
+	{	
+
+		//Condition imposed to ignore initial case
 		if(q!=0)
 		{
-			err = MPI_Gather(&(lastUnmarked), 1, MPI_INT, primesReceived, 1, MPI_INT, rootProcess, MPI_COMM_WORLD);
+			//Gather First unmarked number in each block from all processes 
+			err = MPI_Gather(&(lastUnmarked), 1, MPI_INT, numbersReceived, 1, MPI_INT, rootProcess, MPI_COMM_WORLD);
 
+			//Root process will broadcast the minimum to every process 
 			if (processId == rootProcess)
 			{
 				int allNull = 1;
-				for(int i=0;i<noOfProcesses-1;i++)
+				for(int i=1 ;i <noOfProcesses;i++)
 				{
-					if(primesReceived[i]!=-1 && allNull==1){
+					if(numbersReceived[i]!=-1 && allNull==1){
 						
-						prime = primesReceived[i];
+						prime = numbersReceived[i];
 						allNull = 0;
 						
 					}
-					else if(primesReceived[i]!=-1){
-						prime = min(primesReceived[i],prime);
+					else if(numbersReceived[i]!=-1){
+						prime = min(numbersReceived[i],prime);
 					}
 				}
 
+				//If -1 is received from all processes, broadcast -1
 				if(allNull==1)
 				{
 					prime = -1;
 				}
 
+				//Printing the numbers received from all processes
 				for(int i=1;i<(noOfProcesses);i++)
 				{
-					cout << primesReceived[i] << " ";
+					cout << numbersReceived[i] << " ";
 				}
 				cout << endl;
 			}
 			
+			//Broadcast the prime number to all the processes
 			err =  MPI_Bcast(&prime, 1, MPI_INT, rootProcess, MPI_COMM_WORLD);
 		}
 		
-		if(prime != (-1))
+		if(prime != (-1) && prime<=sqrtN)
 		{
+
+			//All processes except the root process do the following job
 			if(processId!=rootProcess)
 			{
+
+				//If the prime number is less than the block's end, then only proceed --- otherwise no need to process the 
+				//blocks with upper limit less than the prime number, since it won't have any multiples of the prime number
 				if(prime <= ((processId-1)*blockSize+2+blockSize-1))
 				{
+
+					//proceed only after lastunmarked index
 					for(int i=lastUnmarkedIndex;i<blockSize;i++)
 					{
+
+						//If the current number goes beyond N, stop the marking phase
+						if((i+(processId-1)*blockSize+2) > n)
+						{
+							break;
+						}
+
+						//If the current number is a multiple of prime, then mark it
 						if(((i+(processId-1)*blockSize+2) % prime) == 0)
 							marked[i] = '1';
 
-						if((i+(processId-1)*blockSize+2) == prime)//////////////////////////
+						//Unmark the prime number, which got marked in the previous step
+						if((i+(processId-1)*blockSize+2) == prime)
 						{
 							marked[i] = '0';
 							lastUnmarkedIndex++;
@@ -96,13 +136,23 @@ int main(int argc, char** argv)
 					}
 				}
 
+				//Again initialize lastUnmarked to -1
 				lastUnmarked = -1;	
+
 
 				if((prime <= ((processId-1)*blockSize+2+blockSize-1)) && (((processId-1)*blockSize+2) <= sqrtN))
 				{
 					for(int i=lastUnmarkedIndex;i<blockSize;i++)
 					{
-						if((marked[i] == '0')) ///////if not marked
+
+						//If the current number goes beyond N, stop finding the last unmarked
+						if((i+(processId-1)*blockSize+2) > n)
+						{
+							break;
+						}
+
+						//If unmarked is found
+						if(marked[i] == '0') 
 						{
 							lastUnmarked = i+(processId-1)*blockSize+2;
 							lastUnmarkedIndex = i;
@@ -115,11 +165,11 @@ int main(int argc, char** argv)
 					lastUnmarked = -1;
 				}
 			}	
-		}
-		err = MPI_Barrier(MPI_COMM_WORLD);
+		}		
 		q++;	
 	}
 	
+	//Total size of gathered array = sum of sizes of marked arrays from all the processes
 	char* isPrime = (char*)malloc(sizeof(char)*noOfProcesses*blockSize);
 
 
@@ -128,23 +178,29 @@ int main(int argc, char** argv)
 
 
 	//Printing the Prime Numbers
-	if(processId==rootProcess){
+	if(processId==rootProcess)
+	{
+		int x = 1;
 
 		cout<<"\n-----------Printing Prime Numbers-----------\n\n";
 
-		for(int i=blockSize; i<((noOfProcesses)*blockSize);i++){
+		for(int i=blockSize; i<((noOfProcesses)*blockSize);i++)
+		{
 			
+			//Avoid going beyond N
 			if(i-blockSize+2>n)
 				break;
 
-			if(isPrime[i]=='0')
-				cout<< i-blockSize+2 << endl;
+
+			//Only print the left unmarked symbols -- these are primes
+			if(isPrime[i] == '0')
+				cout<< x++ <<") " << i-blockSize+2 << endl;
 		}
 
 		cout<<"\n----------------Woah----------------\n";
 	}
 
-
+	//Parallel Code over
 	err = MPI_Finalize();
 
 	return 0;
