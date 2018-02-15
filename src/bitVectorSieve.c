@@ -1,26 +1,24 @@
 #include "mpi.h"
 #include <iostream>
 #include <math.h>
+#include <stdio.h>
 #include <time.h>
 
 using namespace std;
 
 int main(int argc, char** argv)
 {	
-	clock_t start, end;
-	double elapsedTime;
+	double elapsedTime,elapsedTime1=0;
 	 
-	start = clock();
-	// elapsedTime = -MPI_Wtime();
-
 	int err, processId, noOfProcesses;	
 	
 	//Parallelization starts
 	err = MPI_Init(&argc, &argv);
 
 	//Let every process come execute MPI_Init
-	err = MPI_Barrier(MPI_COMM_WORLD);
+	// err = MPI_Barrier(MPI_COMM_WORLD);
 
+	elapsedTime = -MPI_Wtime();
 	//Get Rank and Total no of processes
 	err = MPI_Comm_rank(MPI_COMM_WORLD, &processId);
 	err = MPI_Comm_size(MPI_COMM_WORLD, &noOfProcesses);
@@ -29,11 +27,8 @@ int main(int argc, char** argv)
 	char* marked1;
 	char* marked2;
 
-	//prime initialized to 2
-	// long int prime = 2;	
-
 	//variable N
-	long int n = 10000000000;
+	long int n = 100000000;
 
 	long int sqrtN = ceil((double)sqrt(n));
 
@@ -59,57 +54,41 @@ int main(int argc, char** argv)
 
 	int flag = 0;
 	long int lastUnmarked = low;
+	long int j = 0; 
 
-	//Every number is unmarked initially
-	for(long int i=2;i<(sqrtN+1);i++)
-	{
-		marked1[i] = '0';
-	}
-	for(long int i=0;i<(high-low+1);i++)
-	{
-		marked2[i] = '0';
-	}
+	memset(marked1, '0', (sqrtN+1));
+	memset(marked2, '0', (high-low+1));
 
 	for(long int i=2; i<=sqrtN; i++)
 	{
 		if(marked1[i] == '0')
 		{
-			if(processId == rootProcess)
-			cout << i << endl;
-			for(long int j=i+1;j<=sqrtN;j++)
+			for(long int k=i+i;k<=sqrtN;k+=i)
 			{
-				if(j%i == 0)
-				{
-					marked1[j] = '1';
-				}
+				marked1[k] = '1';
 			}
+			
+			j = (low/i)*i;
+			
+			if(j<low)
+				j = j+i;
 
-			flag = 0;
-			for(long int j=lastUnmarked;j<=high;j++)
+			elapsedTime1 -= MPI_Wtime();
+			for(j;j<=high;j+=i)
 			{
-				if(j%i == 0)
-				{
-					marked2[j-low] = '1';
-				}
-
-				if((flag != 1) && marked2[j-low] == '0')
-				{
-					lastUnmarked = j;
-					flag = 1;
-				}	
+				marked2[j-low] = '1';	
 			}	
+			elapsedTime1 += MPI_Wtime();
 		}
 	}
 
-	MPI_Barrier(MPI_COMM_WORLD);
-	end = clock();
-	elapsedTime = ((double) (end - start)) / CLOCKS_PER_SEC;
-	// elapsedTime += MPI_Wtime();
-
+	// MPI_Barrier(MPI_COMM_WORLD);
+	
 	free(marked1);
 	free(marked2);
 
-	cout << elapsedTime << endl;
+	elapsedTime += MPI_Wtime();
+	printf("total: %lf  fraction: %lf\n",elapsedTime,elapsedTime1); 
 
 	//Parallel Code over
 	err = MPI_Finalize();

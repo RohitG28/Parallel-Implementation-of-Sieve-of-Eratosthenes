@@ -2,6 +2,7 @@
 #include <iostream>
 #include <math.h>
 #include <time.h>
+#include <stdio.h>
 
 using namespace std;
 
@@ -11,7 +12,8 @@ void setBit(long int* marked, long int k)
 	marked[k/sizeof(long int)] |= 1 << (k%sizeof(long int));
 }
 
-void clearBit(long int* marked, long int k){
+void clearBit(long int* marked, long int k)
+{
 	marked[k/sizeof(long int)] &= ~(1 << (k%sizeof(long int)));
 }
 
@@ -20,8 +22,6 @@ int testBit(long int* marked,  long int k)
 	return ((marked[k/sizeof(long int)] & (1 << (k%sizeof(long int)) )) != 0 ); 
 }
 
-
-
 int main(int argc, char** argv)
 {	
 	int err, processId, noOfProcesses;	
@@ -29,16 +29,10 @@ int main(int argc, char** argv)
 	//Parallelization starts
 	err = MPI_Init(&argc, &argv);
 
-	/**
-	// clock_t start, end;
-	double elapsedTime;
+	double elapsedTime,elapsedTime1;
 	 
 	// start = clock();
 	elapsedTime = -MPI_Wtime();
-	**/
-
-	double tbeg = MPI_Wtime();
-
 
 	//Let every process come execute MPI_Init
 	//err = MPI_Barrier(MPI_COMM_WORLD);
@@ -114,21 +108,16 @@ int main(int argc, char** argv)
 			}
 
 			flag = 0;
-			for(long int j=lastUnmarked;j<=high;j++)
+			elapsedTime1 -= MPI_Wtime();
+			for(long int j=low;j<=high;j++)
 			{
 				if(j%i == 0)
 				{
 					//marked2[j-low] = '1';
 					setBit(marked2,j-low);
 				}
-
-				//if((flag != 1) && marked2[j-low] == '0')
-				if((flag != 1) && !testBit(marked2,j-low))
-				{
-					lastUnmarked = j;
-					flag = 1;
-				}	
-			}	
+			}
+			elapsedTime1 += MPI_Wtime();	
 		}
 	}
 
@@ -137,7 +126,7 @@ int main(int argc, char** argv)
 	// elapsedTime = ((double) (end - start)) / CLOCKS_PER_SEC;
 	//elapsedTime += MPI_Wtime();
 
-	double elapsedTime = MPI_Wtime() - tbeg;
+	elapsedTime += MPI_Wtime();
 
 	// //Total size of gathered array = sum of sizes of marked arrays from all the processes
 	// char* isPrime = (char*)malloc(sizeof(char)*noOfProcesses*blockSize);
@@ -169,7 +158,8 @@ int main(int argc, char** argv)
 		// }
 
 		// cout<<"\n----------------Woah----------------\n";
-	cout << elapsedTime << endl;
+	printf("total: %lf  fraction: %lf\n",elapsedTime,elapsedTime1); 
+
 
 	//Parallel Code over
 	err = MPI_Finalize();
