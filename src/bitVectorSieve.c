@@ -28,7 +28,7 @@ int main(int argc, char** argv)
 	char* marked2;
 
 	//variable N
-	long int n = 100000000;
+	long int n = 1000000000;
 
 	long int sqrtN = ceil((double)sqrt(n));
 
@@ -38,28 +38,41 @@ int main(int argc, char** argv)
 	marked1 = (char*)malloc((sqrtN+1)*sizeof(char));
 
 	//Size of range given to each process
-	blockSize = (n-(sqrtN+1))/noOfProcesses;
+	blockSize = (n-(sqrtN))/(noOfProcesses);
 	low = sqrtN + processId*blockSize + 1;
 	high = low + blockSize - 1;
-	remainder = (n-(sqrtN+1))%noOfProcesses;
+	remainder = (n-(sqrtN))%(noOfProcesses);
 
 	if(processId == noOfProcesses-1)
 	{
 		high += remainder;
 	}
 
-	marked2 = (char*)malloc((high-low+1)*sizeof(char));
+	if(low%2 == 0)
+		low++;
+
+	if(high%2 == 0)
+		high--;
+
+	long int highIndex = (high-low)/2;
+	long int sieveStart;
+	long int j = 0; 
+
+	marked2 = (char*)malloc((((high-low)/2)+1)*sizeof(char));
 
 	int rootProcess = 0;
 
-	int flag = 0;
-	long int lastUnmarked = low;
-	long int j = 0; 
-
 	memset(marked1, '0', (sqrtN+1));
-	memset(marked2, '0', (high-low+1));
+	memset(marked2, '0', (((high-low)/2)+1));
 
-	for(long int i=2; i<=sqrtN; i++)
+	MPI_Barrier(MPI_COMM_WORLD);
+
+	for(long int k=4;k<=sqrtN;k+=2)
+	{
+		marked1[k] = '1';
+	}
+
+	for(long int i=3; i<=sqrtN; i++)
 	{
 		if(marked1[i] == '0')
 		{
@@ -68,26 +81,55 @@ int main(int argc, char** argv)
 				marked1[k] = '1';
 			}
 			
-			j = (low/i)*i;
+			sieveStart = (low/i)*i;
 			
-			if(j<low)
-				j = j+i;
+			if(sieveStart<low)
+				sieveStart = sieveStart+i;
 
-			elapsedTime1 -= MPI_Wtime();
-			for(j;j<=high;j+=i)
+			if(sieveStart%2 == 0)
+				sieveStart += i;
+
+			if(sieveStart <= high)
 			{
-				marked2[j-low] = '1';	
-			}	
-			elapsedTime1 += MPI_Wtime();
+				j = (sieveStart - low)/2;
+
+				for(j;j<=highIndex;j+=i)
+				{
+					marked2[j] = '1';
+					// if(processId == 3)
+					// 	cout << low+j*2 << " " << i << endl;	
+				}	
+			}
 		}
 	}
 
 	// MPI_Barrier(MPI_COMM_WORLD);
+	elapsedTime += MPI_Wtime();
 	
+	// if(processId == rootProcess)
+	// {
+	// 	for(long int i=2; i<=sqrtN; i++)
+	// 	{
+	// 		if(marked1[i] == '0')
+	// 		{
+	// 			cout << processId << ": " << i << endl;
+	// 		}
+	// 	}
+	// }
+
+	MPI_Barrier(MPI_COMM_WORLD);
+
+	// for(long int i=0; i<=highIndex; i++)
+	// {
+	// 	if(marked2[i] == '0')
+	// 	{
+	// 		printf("%ld : %ld\n",processId,low+i+i);
+	// 	}
+	// }
+
 	free(marked1);
 	free(marked2);
 
-	elapsedTime += MPI_Wtime();
 	printf("total: %lf  fraction: %lf\n",elapsedTime,elapsedTime1); 
 
 	//Parallel Code over
