@@ -3,6 +3,8 @@
 #include <math.h>
 #include <stdio.h>
 #include <fstream>
+#include <stdlib.h>
+#include <bits/stdc++.h>
 
 using namespace std;
 
@@ -28,8 +30,10 @@ int main(int argc, char** argv)
 	char* marked2;
 
 	//variable N
-	long int n = 100;
+	long int n = atoi(argv[1]);
 
+	vector<long int> primes;
+	
 	long int sqrtN = ceil((double)sqrt(n));
 
 	long int blockSize;
@@ -115,38 +119,41 @@ int main(int argc, char** argv)
 		}
 	}
 
-	elapsedTime += MPI_Wtime();
-	
-	primesFile.open (processIdStr, std::ofstream::out | std::ofstream::trunc);
-
 	if(processId == rootProcess)
 	{
 		for(long int i=2; i<=sqrtN; i++)
 		{
 			if(marked1[i] == '0')
 			{
-				primesFile << i << "\n";
-				// cout << processId << ": " << i << endl;
+				primes.push_back(i);
 			}
 		}
 	}
-
-	// MPI_Barrier(MPI_COMM_WORLD);
 
 	for(long int i=0; i<=highIndex; i++)
 	{
 		if(marked2[i] == '0')
 		{
-			primesFile << low + i*2 << "\n";
-			// printf("%ld : %ld\n",processId,low+i+i);
+			primes.push_back(low + i*2);
 		}
 	}
-	primesFile.close();
+	elapsedTime += MPI_Wtime();
 
 	free(marked1);
 	free(marked2);
 
-	printf("total: %lf  fraction: %lf\n",elapsedTime,elapsedTime1); 
+	primesFile.open (processIdStr, std::ofstream::out | std::ofstream::trunc);
+
+	MPI_Barrier(MPI_COMM_WORLD);
+
+	for(long int i=0; i<primes.size(); i++)
+	{
+		primesFile << primes[i] << "\n";
+	}
+	
+	primesFile.close();
+
+	printf("total: %lf size: %lu\n",elapsedTime,primes.size()); 
 
 	//Parallel Code over
 	err = MPI_Finalize();
