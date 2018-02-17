@@ -36,10 +36,15 @@ int main(int argc, char** argv)
 	
 	long int sqrtN = ceil((double)sqrt(n));
 
+	if(sqrtN%2 == 0)
+	{
+		sqrtN = sqrtN - 1;
+	}
+
 	long int blockSize;
 	long int low,high,remainder;
 
-	marked1 = (char*)malloc((sqrtN+1)*sizeof(char));
+	marked1 = (char*)malloc((((sqrtN-3)/2)+1)*sizeof(char));
 
 	//Size of range given to each process
 	blockSize = (n-(sqrtN))/(noOfProcesses);
@@ -70,7 +75,7 @@ int main(int argc, char** argv)
 	int rootProcess = 0;
 
 	//initialize all numbers to be prime
-	memset(marked1, '0', (sqrtN+1));
+	memset(marked1, '0', (((sqrtN-3)/2)+1));
 	memset(marked2, '0', (((high-low)/2)+1));
 
 	ofstream primesFile;
@@ -79,53 +84,55 @@ int main(int argc, char** argv)
 	
 	//let all processes reach this point 
 	MPI_Barrier(MPI_COMM_WORLD);
+	long int primeNo;
 
 	//mark all even numbers except 2 in marked1 as non prime 
-	for(long int k=4;k<=sqrtN;k+=2)
+	// for(long int k=4;k<=sqrtN;k+=2)
+	// {
+	// 	marked1[k] = '1';
+	// }
+
+	if(processId == rootProcess)
 	{
-		marked1[k] = '1';
+		primes.push_back(2);
 	}
 
 	//for each unmarked number in marked1 sieve marked1 as well as marked2 arrays thus marking non primes
-	for(long int i=3; i<=sqrtN; i++)
+	for(long int i=0; i<=(sqrtN-3)/2; i++)
 	{
 		if(marked1[i] == '0')
 		{
-			for(long int k=i+i;k<=sqrtN;k+=i)
+			primeNo = i*2 + 3;
+
+			if(processId == rootProcess)
+			{
+				primes.push_back(primeNo);
+			}
+
+			for(long int k=i+primeNo;k<=(sqrtN-3)/2;k+=primeNo)
 			{
 				marked1[k] = '1';
 			}
 			
 			//find the first number(obviously odd) divisible by the current prime in the process range
-			sieveStart = (low/i)*i;
+			sieveStart = (low/primeNo)*primeNo;
 			
 			if(sieveStart<low)
-				sieveStart = sieveStart+i;
+				sieveStart = sieveStart+primeNo;
 
 			//if the number is even, again add the prime number to get its first odd multiple in the range
 			if(sieveStart%2 == 0)
-				sieveStart += i;
+				sieveStart += primeNo;
 
 			//the number from which sieve starts must be less than the last number in the range
 			if(sieveStart <= high)
 			{
 				j = (sieveStart - low)/2;
 
-				for(j;j<=highIndex;j+=i)
+				for(j;j<=highIndex;j+=primeNo)
 				{
 					marked2[j] = '1';
 				}	
-			}
-		}
-	}
-
-	if(processId == rootProcess)
-	{
-		for(long int i=2; i<=sqrtN; i++)
-		{
-			if(marked1[i] == '0')
-			{
-				primes.push_back(i);
 			}
 		}
 	}
@@ -146,10 +153,10 @@ int main(int argc, char** argv)
 
 	MPI_Barrier(MPI_COMM_WORLD);
 
-	for(long int i=0; i<primes.size(); i++)
-	{
-		primesFile << primes[i] << "\n";
-	}
+	// for(long int i=0; i<primes.size(); i++)
+	// {
+	// 	primesFile << primes[i] << "\n";
+	// }
 	
 	primesFile.close();
 
