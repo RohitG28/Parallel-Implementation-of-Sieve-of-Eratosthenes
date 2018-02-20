@@ -30,7 +30,7 @@ int main(int argc, char** argv)
 	char* marked2;
 
 	//variable N
-	long int n = atoi(argv[1]);
+	long int n = atol(argv[1]);
 
 	vector<long int> primes;
 	
