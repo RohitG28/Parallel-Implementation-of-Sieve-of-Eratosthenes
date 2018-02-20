@@ -10,7 +10,7 @@ using namespace std;
 
 int main(int argc, char** argv)
 {	
-	double elapsedTime,elapsedTime1=0;
+	double elapsedTime;
 	 
 	int err, processId, noOfProcesses;	
 	
@@ -78,7 +78,7 @@ int main(int argc, char** argv)
 	memset(marked1, '0', (((sqrtN-3)/2)+1));
 	memset(marked2, '0', (((high-low)/2)+1));
 
-	ofstream primesFile;
+	ofstream primesFile, statFile;
 	char processIdStr[3];
 	sprintf(processIdStr,"%d",processId);
 	
@@ -149,18 +149,27 @@ int main(int argc, char** argv)
 	free(marked1);
 	free(marked2);
 
-	primesFile.open (processIdStr, std::ofstream::out | std::ofstream::trunc);
-
 	MPI_Barrier(MPI_COMM_WORLD);
 
-	// for(long int i=0; i<primes.size(); i++)
-	// {
-	// 	primesFile << primes[i] << "\n";
-	// }
+	primesFile.open (processIdStr, std::ofstream::out | std::ofstream::trunc);
+
+	for(long int i=0; i<primes.size(); i++)
+	{
+		primesFile << primes[i] << "\n";
+	}
 	
 	primesFile.close();
 
-	printf("total: %lf size: %lu\n",elapsedTime,primes.size()); 
+	if(processId == rootProcess)
+	{
+		statFile.open ("statfile", std::ofstream::out | std::ofstream::trunc);
+		statFile << n << "\n";
+		statFile << noOfProcesses << "\n";
+		statFile << elapsedTime << "\n";
+		statFile.close();
+	}
+
+	printf("total time take by %d : %lf\n",processId,elapsedTime); 
 
 	//Parallel Code over
 	err = MPI_Finalize();
